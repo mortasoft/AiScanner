@@ -1,26 +1,55 @@
 services:
-  web:
-    build: .
-    ports:
-      - "5000:5000"
+  db:
+    image: mariadb:10.11
+    container_name: aiscanner_db
+    restart: always
     environment:
-      - DB_HOST=db
-      - DB_USER=root
-      - DB_PASSWORD=rootpassword
-      - DB_NAME=secops
-      - APP_PORT=5000
+      MYSQL_ROOT_PASSWORD: ${MYSQL_ROOT_PASSWORD}
+      MYSQL_DATABASE: ${MYSQL_DATABASE}
+      MYSQL_USER: ${MYSQL_USER}
+      MYSQL_PASSWORD: ${MYSQL_PASSWORD}
+    ports:
+      - "${DB_PORT}:3306"
+    volumes:
+      - mariadb_data:/var/lib/mysql
+
+  redis:
+    image: redis:7-alpine
+    container_name: aiscanner_redis
+    restart: always
+    ports:
+      - "${REDIS_PORT}:6379"
+    volumes:
+      - redis_data:/data
+
+  backend:
+    build:
+      context: ./backend
+    container_name: aiscanner_backend
+    restart: always
+    ports:
+      - "${BACKEND_PORT}:8000"
+    environment:
+      - DATABASE_URL=mysql+aiomysql://${MYSQL_USER}:${MYSQL_PASSWORD}@db:3306/${MYSQL_DATABASE}
+      - REDIS_URL=redis://redis:6379/0
+      - NESSUS_API_URL=${NESSUS_API_URL}
+      - OPENVAS_API_URL=${OPENVAS_API_URL}
     depends_on:
       - db
-    restart: always
+      - redis
 
-  db:
-    image: mariadb:10
-    environment:
-      - MYSQL_ROOT_PASSWORD=rootpassword
-      - MYSQL_DATABASE=secops
-    volumes:
-      - db_data:/var/lib/mysql
+  frontend:
+    build:
+      context: ./frontend
+    container_name: aiscanner_frontend
     restart: always
+    ports:
+      - "${FRONTEND_PORT}:5173"
+    environment:
+      - VITE_API_URL=${VITE_API_URL}
+    depends_on:
+      - backend
 
 volumes:
-  db_data:
+  mariadb_data:
+  redis_data:

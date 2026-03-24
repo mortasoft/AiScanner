@@ -1,0 +1,9 @@
+fastapi
+uvicorn
+sqlalchemy
+aiomysql
+redis
+python-nmap
+requests
+httpx
+pydantic
