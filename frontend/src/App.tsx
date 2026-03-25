@@ -168,8 +168,34 @@ export default function App() {
   };
 
   const copyToClipboard = (text: string) => {
-    navigator.clipboard.writeText(text);
-    addToast("Payload copied to clipboard buffer", 'success');
+    if (navigator.clipboard && window.isSecureContext) {
+      navigator.clipboard.writeText(text).then(() => {
+        addToast("Payload copied to clipboard buffer", 'success');
+      }).catch(err => {
+        console.error('Modern copy failed', err);
+        fallbackCopy(text);
+      });
+    } else {
+      fallbackCopy(text);
+    }
+  };
+
+  const fallbackCopy = (text: string) => {
+    const textArea = document.createElement("textarea");
+    textArea.value = text;
+    textArea.style.position = "fixed";
+    textArea.style.left = "-9999px";
+    textArea.style.top = "0";
+    document.body.appendChild(textArea);
+    textArea.focus();
+    textArea.select();
+    try {
+      document.execCommand('copy');
+      addToast("Payload copied to clipboard (Legacy)", 'success');
+    } catch (err) {
+      addToast("Clipboard access denied by security policy", 'error');
+    }
+    document.body.removeChild(textArea);
   };
 
   return (
