@@ -76,8 +76,11 @@ async def perform_nmap_scan(target: str, scan_id: str, intensity_key: str):
     # Get actual flags from mapping, fallback to fast scan
     nmap_args = SCAN_INTENSITIES.get(intensity_key, SCAN_INTENSITIES["fast"])
     
-    # Hardcode -sS and --open for absolute forensic fidelity on Linux
-    full_cmd = f"nmap --stats-every 1s -sS --open {nmap_args} -oX - {target}"
+    # Conditional logic: Don't combine -sn (ping only) with port scan flags (-sS, --open)
+    if "-sn" in nmap_args:
+        full_cmd = f"nmap --stats-every 1s {nmap_args} -oX - {target}"
+    else:
+        full_cmd = f"nmap --stats-every 1s -sS --open {nmap_args} -oX - {target}"
     
     now_log = datetime.now().strftime("%H:%M:%S")
     import os
