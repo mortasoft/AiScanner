@@ -8,17 +8,9 @@ import DashboardOverview from './components/DashboardOverview';
 import NetworkDiscovery from './components/NetworkDiscovery';
 import NetworkDetails from './components/NetworkDetails';
 import HardwareInventory from './components/HardwareInventory';
+import AssetDetails from './components/AssetDetails';
+import SecurityAlerts from './components/SecurityAlerts';
 import ScanModal from './components/ScanModal';
-
-const SCAN_INTENSITIES: Record<string, string> = {
-  'fast': '-F -PE -n -T4 --osscan-limit --max-retries 1 --host-timeout 10s',
-  'deep': '-p- -PE -n -A -T4 --host-timeout 5m',
-  'stealth': '-sS -Pn -n -T4 --host-timeout 1m',
-  'ping_sweep': '-sn -PE -n -T4 --max-retries 1 --host-timeout 10s',
-  'os_detection': '-O -sV -PE -n --osscan-guess -T4 --host-timeout 30s',
-  'aggressive': '-A -p- -PE -n -T5 --script default,banner,vuln --host-timeout 5m',
-  'script_audit': '-sV -sC -PE -n --script auth,discovery,safe -T4 --host-timeout 3m'
-};
 
 export default function App() {
   // Navigation & UI State
@@ -26,6 +18,7 @@ export default function App() {
   const [isSidebarCollapsed, setIsSidebarCollapsed] = useState(() => localStorage.getItem('aura_sidebar_collapsed') === 'true');
   
   // Data State
+  const [scanProfiles, setScanProfiles] = useState<any>({});
   const [scanHistory, setScanHistory] = useState<any[]>([]);
   const [totalScans, setTotalScans] = useState(0);
   const [currentPage, setCurrentPage] = useState(1);
@@ -40,6 +33,8 @@ export default function App() {
   const [scanStatus, setScanStatus] = useState("");
   const [devices, setDevices] = useState<any[]>([]);
   const [globalHosts, setGlobalHosts] = useState<any[]>([]);
+  const [selectedHost, setSelectedHost] = useState<any | null>(null);
+  const [dashboardStats, setDashboardStats] = useState<any>(null);
 
   // Notifications State
   const [toasts, setToasts] = useState<any[]>([]);
@@ -51,12 +46,29 @@ export default function App() {
     .replace('127.0.0.1', window.location.hostname);
 
   // Persistence
-  useEffect(() => { localStorage.setItem('aura_active_tab', activeTab); }, [activeTab]);
+  useEffect(() => { 
+    localStorage.setItem('aura_active_tab', activeTab);
+    setSelectedHost(null); // Clear selection on tab change
+    setSelectedScanId(null);
+  }, [activeTab]);
   useEffect(() => { localStorage.setItem('aura_sidebar_collapsed', isSidebarCollapsed.toString()); }, [isSidebarCollapsed]);
+
+  const fetchScanProfiles = async () => {
+    try {
+      const resp = await fetch(`${API_BASE_URL}/scan/profiles`);
+      if (resp.ok) setScanProfiles(await resp.json());
+    } catch (e) { console.error("Forensic Engine initialization failed", e); }
+  };
+
+  useEffect(() => {
+    fetchScanProfiles();
+  }, []);
 
   // Global Lifecycle
   useEffect(() => {
-    if (activeTab === 'network') {
+    if (activeTab === 'dashboard') {
+      fetchDashboardStats();
+    } else if (activeTab === 'network') {
       if (!selectedScanId) fetchScanHistory();
       else pollScanStatus(selectedScanId);
     } else if (activeTab === 'endpoints') {
@@ -101,6 +113,13 @@ export default function App() {
     try {
       const resp = await fetch(`${API_BASE_URL}/hosts`);
       if (resp.ok) setGlobalHosts(await resp.json());
+    } catch (e) { console.error(e); }
+  };
+
+  const fetchDashboardStats = async () => {
+    try {
+      const resp = await fetch(`${API_BASE_URL}/stats`);
+      if (resp.ok) setDashboardStats(await resp.json());
     } catch (e) { console.error(e); }
   };
 
@@ -205,12 +224,13 @@ export default function App() {
         setActiveTab={setActiveTab} 
         isSidebarCollapsed={isSidebarCollapsed} 
         setIsSidebarCollapsed={setIsSidebarCollapsed} 
+        system={dashboardStats?.system}
       />
 
-      <main className="flex-1 flex flex-col relative overflow-hidden bg-[radial-gradient(circle_at_50%_0%,_#0f172a_0%,_#020617_100%)]">
+      <main className="flex-1 flex flex-col relative overflow-hidden bg-[#020617]">
         <div className="p-6 h-full flex flex-col overflow-auto custom-scrollbar relative z-10">
           
-          {activeTab === 'dashboard' && <DashboardOverview totalHosts={globalHosts.length} totalScans={totalScans} />}
+          {activeTab === 'dashboard' && <DashboardOverview stats={dashboardStats} system={dashboardStats?.system} />}
           
           {activeTab === 'network' && (
             !selectedScanId ? (
@@ -233,12 +253,43 @@ export default function App() {
                 selectedScanId={selectedScanId} scanHistory={scanHistory}
                 scanStatus={scanStatus} devices={devices}
                 setSelectedScanId={setSelectedScanId} copyToClipboard={copyToClipboard}
-                SCAN_INTENSITIES={SCAN_INTENSITIES} scanIntensity={scanIntensity}
+                scanProfiles={scanProfiles}
+                scanIntensity={scanIntensity}
               />
             )
           )}
 
-          {activeTab === 'endpoints' && <HardwareInventory globalHosts={globalHosts} />}
+          {activeTab === 'endpoints' && (
+            !selectedHost ? (
+              <HardwareInventory globalHosts={globalHosts} onSelectHost={setSelectedHost} />
+            ) : (
+              <AssetDetails 
+                host={selectedHost} 
+                onBack={() => setSelectedHost(null)} 
+                API_BASE_URL={API_BASE_URL} 
+                onHostUpdate={(updatedHost: any) => {
+                  setSelectedHost(updatedHost);
+                  setGlobalHosts(prev => prev.map(h => h.ip === updatedHost.ip ? updatedHost : h));
+                }}
+                onHostDelete={(ip: string) => {
+                  setSelectedHost(null);
+                  setGlobalHosts(prev => prev.filter(h => h.ip !== ip));
+                  fetchDashboardStats();
+                }}
+                addToast={addToast}
+                setConfirmDialog={setConfirmDialog}
+                fullScanHistory={scanHistory}
+                onSelectScan={(sid: string) => {
+                  setSelectedScanId(sid);
+                  setActiveTab('discovery');
+                }}
+              />
+            )
+          )}
+
+          {activeTab === 'alerts' && (
+            <SecurityAlerts API_BASE_URL={API_BASE_URL} addToast={addToast} />
+          )}
 
           {activeTab === 'vulnerability' && (
             <div className="h-full flex flex-col items-center justify-center p-12 text-center bg-slate-900/20 rounded-3xl border border-slate-800 animate-in zoom-in-95 duration-700">
@@ -267,7 +318,7 @@ export default function App() {
         setTargetIP={setTargetIP}
         scanIntensity={scanIntensity}
         setScanIntensity={setScanIntensity}
-        SCAN_INTENSITIES={SCAN_INTENSITIES}
+        scanProfiles={scanProfiles}
         isScanning={isScanning}
         triggerNetworkScan={triggerNetworkScan}
       />

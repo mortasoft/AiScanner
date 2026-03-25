@@ -1,4 +1,3 @@
-import React from 'react';
 import { X, Search, RefreshCw, Zap, Shield, ZapOff, Activity, Terminal, Info, Cpu, Server, FileCode } from 'lucide-react';
 
 interface ScanModalProps {
@@ -8,28 +7,23 @@ interface ScanModalProps {
   setTargetIP: (ip: string) => void;
   scanIntensity: string;
   setScanIntensity: (intensity: string) => void;
-  SCAN_INTENSITIES: Record<string, string>;
+  scanProfiles: any;
   isScanning: boolean;
   triggerNetworkScan: () => void;
 }
 
+const IconMap: Record<string, any> = {
+    ZapOff, Server, Shield, Activity, Cpu, Zap, RefreshCw, FileCode
+};
+
 export default function ScanModal({
   show, onClose, targetIP, setTargetIP, scanIntensity, setScanIntensity,
-  SCAN_INTENSITIES, isScanning, triggerNetworkScan
+  scanProfiles, isScanning, triggerNetworkScan
 }: ScanModalProps) {
   if (!show) return null;
 
-  const currentFlags = SCAN_INTENSITIES[scanIntensity] || "";
-
-  const intensityProfiles: Record<string, { label: string, desc: string, icon: any }> = {
-    'fast': { label: 'Fast Discovery', desc: 'Minimal footprint, top 100 ports only.', icon: ZapOff },
-    'deep': { label: 'Deep Scan', desc: 'Full port inspection with OS/Service detection.', icon: Server },
-    'stealth': { label: 'Stealth Audit', desc: 'SYN scan with OS evasion techniques.', icon: Shield },
-    'ping_sweep': { label: 'Ping Sweep', desc: 'Host discovery without port scanning.', icon: Activity },
-    'os_detection': { label: 'OS Fingerprint', desc: 'Deduce OS version via TCP/IP stack.', icon: Cpu },
-    'aggressive': { label: 'Aggressive', desc: 'Full inspection, scripts & vuln scan.', icon: Zap },
-    'script_audit': { label: 'Script Audit', desc: 'NSE scripts for auth and discovery.', icon: FileCode }
-  };
+  const currentFlags = scanProfiles[scanIntensity]?.flags || "";
+  const profileKeys = Object.keys(scanProfiles);
 
   return (
     <div className="fixed inset-0 z-[100] flex items-center justify-center p-4">
@@ -79,8 +73,9 @@ export default function ScanModal({
               Select Scan Profile
             </label>
             <div className="grid grid-cols-2 gap-3">
-              {Object.keys(intensityProfiles).map(key => {
-                const ProfileIcon = intensityProfiles[key].icon;
+              {profileKeys.map(key => {
+                const profile = scanProfiles[key];
+                const ProfileIcon = IconMap[profile.icon] || Info;
                 return (
                   <button
                     key={key}
@@ -94,10 +89,10 @@ export default function ScanModal({
                       <ProfileIcon className="w-4 h-4" />
                     </div>
                     <span className={`text-[11px] font-black uppercase tracking-widest mb-1 ${scanIntensity === key ? 'text-cyan-300' : 'text-slate-300'}`}>
-                      {intensityProfiles[key].label}
+                      {profile.label}
                     </span>
                     <p className="text-[10px] text-slate-500 leading-relaxed line-clamp-2">
-                      {intensityProfiles[key].desc}
+                      {profile.desc}
                     </p>
                     {scanIntensity === key && (
                       <div className="absolute top-3 right-3 w-1.5 h-1.5 bg-cyan-400 rounded-full animate-pulse shadow-[0_0_8px_rgba(34,211,238,0.8)]"></div>
@@ -149,7 +144,7 @@ export default function ScanModal({
             className={`px-10 py-3.5 rounded-2xl font-black text-xs uppercase tracking-[0.25em] transition-all transform active:scale-95 shadow-xl flex items-center space-x-3
               ${isScanning || !targetIP
                 ? 'bg-slate-800 text-slate-600 cursor-not-allowed border border-slate-700 opacity-50'
-                : 'bg-gradient-to-r from-blue-600 to-cyan-600 hover:from-blue-500 hover:to-cyan-500 text-white border border-white/10 shadow-blue-500/40'}`}
+                : 'bg-cyan-400 hover:bg-cyan-300 text-slate-950 border border-cyan-400/20 shadow-cyan-500/40'}`}
           >
             {isScanning ? <RefreshCw className="w-4 h-4 animate-spin" /> : <RefreshCw className="w-4 h-4 group-hover:rotate-180 transition-transform duration-700" />}
             <span>Start Scan</span>

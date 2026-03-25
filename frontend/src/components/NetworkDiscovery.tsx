@@ -1,4 +1,4 @@
-import { RefreshCw, Trash2, ChevronLeft, ChevronRight, Server, Network, Play, Eye, Shield, Zap, Cpu, Activity, ZapOff, FileCode } from 'lucide-react';
+import { RefreshCw, Trash2, ChevronLeft, ChevronRight, Server, Network, Eye } from 'lucide-react';
 import React from 'react';
 
 const INTENSITY_LABELS: Record<string, string> = {
@@ -46,7 +46,7 @@ export default function NetworkDiscovery({
 
         <button
           onClick={() => setShowScanModal(true)}
-          className="px-8 py-3.5 bg-gradient-to-r from-blue-600 to-cyan-600 hover:from-blue-500 hover:to-cyan-500 text-white rounded-xl font-black text-xs uppercase tracking-[0.2em] transition-all transform active:scale-95 shadow-lg shadow-blue-500/20 border border-blue-400/20 flex items-center space-x-3 group"
+          className="px-8 py-3.5 bg-cyan-300 hover:bg-cyan-300 text-slate-950 rounded-xl font-black text-xs uppercase tracking-[0.2em] transition-all transform active:scale-95 shadow-lg shadow-cyan-500/20 border border-cyan-400/20 flex items-center space-x-3 group"
         >
           <RefreshCw className="w-4 h-4 group-hover:rotate-180 transition-transform duration-700" />
           <span>New Scan</span>
@@ -60,9 +60,7 @@ export default function NetworkDiscovery({
             <span className="w-2 h-2 bg-cyan-500 rounded-full mr-3 shadow-[0_0_8px_rgba(6,182,212,0.8)] animate-pulse"></span>
             Scan History
           </h2>
-          <div className="text-[10px] text-slate-500 font-bold uppercase tracking-widest">
-            Last <span className="text-cyan-400 font-mono">10</span> Tasks
-          </div>
+
         </div>
 
         {scanHistory.length > 0 ? (
@@ -71,10 +69,10 @@ export default function NetworkDiscovery({
               <table className="w-full text-left text-sm border-separate border-spacing-0">
                 <thead className="bg-slate-950/50 text-slate-500 border-b border-slate-800 sticky top-0 z-10 backdrop-blur-md">
                   <tr>
-                    <th className="px-6 py-4 font-bold uppercase tracking-widest text-[10px]">Audit Target</th>
+                    <th className="px-6 py-4 font-bold uppercase tracking-widest text-[10px]">Target</th>
                     <th className="px-6 py-4 font-bold uppercase tracking-widest text-[10px]">Scan Status</th>
-                    <th className="px-6 py-4 font-bold uppercase tracking-widest text-[10px]">System Yield</th>
-                    <th className="px-6 py-4 font-bold uppercase tracking-widest text-[10px] text-right">Utility</th>
+                    <th className="px-6 py-4 font-bold uppercase tracking-widest text-[10px]">Stats</th>
+                    <th className="px-6 py-4 font-bold uppercase tracking-widest text-[10px] text-center">Actions</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-slate-800/30">
@@ -96,34 +94,32 @@ export default function NetworkDiscovery({
                       </td>
                       <td className="px-6 py-5">
                         <div className="flex flex-col space-y-2">
-                           <div>
-                            <span className={`inline-flex items-center px-2 py-0.5 rounded-md text-[9px] font-black tracking-widest border uppercase italic ${
-                              scan.intensity === 'aggressive' ? 'bg-yellow-500/10 text-yellow-400 border-yellow-500/20 shadow-[0_0_8px_rgba(234,179,8,0.1)]' :
+                          <div>
+                            <span className={`inline-flex items-center px-2 py-0.5 rounded-md text-[9px] font-black tracking-widest border uppercase italic ${scan.intensity === 'aggressive' ? 'bg-yellow-500/10 text-yellow-400 border-yellow-500/20 shadow-[0_0_8px_rgba(234,179,8,0.1)]' :
                               scan.intensity === 'stealth' ? 'bg-slate-700/20 text-slate-400 border-slate-700/40 shadow-inner' :
-                              scan.intensity === 'os_detection' ? 'bg-slate-800/40 text-slate-300 border-slate-700' :
-                              scan.intensity === 'deep' ? 'bg-indigo-500/10 text-indigo-400 border-indigo-500/20' :
-                              scan.intensity === 'script_audit' ? 'bg-purple-500/10 text-purple-400 border-purple-500/20' :
-                              'bg-cyan-500/10 text-cyan-400 border-cyan-500/20'
-                            }`}>
+                                scan.intensity === 'os_detection' ? 'bg-slate-800/40 text-slate-300 border-slate-700' :
+                                  scan.intensity === 'deep' ? 'bg-indigo-500/10 text-indigo-400 border-indigo-500/20' :
+                                    scan.intensity === 'script_audit' ? 'bg-purple-500/10 text-purple-400 border-purple-500/20' :
+                                      'bg-cyan-500/10 text-cyan-400 border-cyan-500/20'
+                              }`}>
                               {INTENSITY_LABELS[scan.intensity] || scan.intensity || 'standard'}
                             </span>
-                           </div>
-                           {scan.status === 'running' ? (
+                          </div>
+                          {scan.status === 'running' ? (
                             <div className="flex flex-col w-full min-w-[140px]">
                               <div className="flex items-center justify-between mb-1 px-0.5">
-                                <span className="text-[9px] text-blue-400 font-black tracking-tighter uppercase italic animate-pulse">Discovery {Math.round(Number(scan.progress) || 0)}%</span>
+                                <span className="text-[9px] text-blue-400 font-black tracking-widest uppercase italic animate-pulse">Running Scan...</span>
                               </div>
                               <div className="w-full bg-slate-950 border border-slate-800 rounded-full h-1 overflow-hidden">
                                 <div
-                                  className="bg-gradient-to-r from-blue-600 via-cyan-500 to-emerald-400 h-full transition-all duration-700 ease-out"
-                                  style={{ width: `${Math.min(100, Math.max(2, Number(scan.progress) || 0))}%` }}
+                                  className="bg-cyan-500/40 h-full animate-pulse shadow-[0_0_10px_rgba(34,211,238,0.2)]"
+                                  style={{ width: `100%` }}
                                 ></div>
                               </div>
                             </div>
                           ) : (
-                            <span className={`text-[10px] font-black tracking-widest uppercase ${
-                              scan.status === 'completed' ? 'text-emerald-500/60' : 'text-slate-500'
-                            }`}>
+                            <span className={`text-[10px] font-black tracking-widest uppercase ${scan.status === 'completed' ? 'text-emerald-500/60' : 'text-slate-500'
+                              }`}>
                               {scan.status}
                             </span>
                           )}
@@ -131,19 +127,19 @@ export default function NetworkDiscovery({
                       </td>
                       <td className="px-6 py-5">
                         <div className="flex items-center space-x-4">
-                           <div className="flex flex-col">
-                              <span className="text-lg font-black text-slate-200 leading-none">{scan.hosts_found}</span>
-                              <span className="text-[9px] text-slate-500 font-bold uppercase tracking-widest">Hosts</span>
-                           </div>
-                           <div className="h-8 w-px bg-slate-800/50"></div>
-                           <div className="flex flex-col">
-                              <span className="text-[10px] text-slate-400 font-mono font-bold italic">{scan.duration || '--'}</span>
-                              <span className="text-[9px] text-slate-600 font-mono uppercase opacity-60 tracking-tighter">{scan.size || '0 KB'}</span>
-                           </div>
+                          <div className="flex flex-col">
+                            <span className="text-lg font-black text-slate-200 leading-none">{scan.hosts_found}</span>
+                            <span className="text-[9px] text-slate-500 font-bold uppercase tracking-widest">Hosts</span>
+                          </div>
+                          <div className="h-8 w-px bg-slate-800/50"></div>
+                          <div className="flex flex-col">
+                            <span className="text-[10px] text-slate-400 font-mono font-bold italic">{scan.duration || '--'}</span>
+                            <span className="text-[9px] text-slate-600 font-mono uppercase opacity-60 tracking-tighter">{scan.size || '0 KB'}</span>
+                          </div>
                         </div>
                       </td>
                       <td className="px-6 py-5">
-                        <div className="flex justify-end space-x-2">
+                        <div className="flex justify-center space-x-2">
                           <button
                             onClick={() => setSelectedScanId(scan.id)}
                             className="p-2.5 bg-blue-500/10 text-blue-400 hover:bg-blue-500/20 rounded-xl transition-all border border-blue-500/20 hover:scale-105"

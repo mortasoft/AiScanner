@@ -1,5 +1,5 @@
 import React from 'react';
-import { ChevronLeft, RefreshCw, Terminal, Globe, Cpu, Hash, AlertTriangle } from 'lucide-react';
+import { ChevronLeft, RefreshCw, Terminal, Cpu, Hash, AlertTriangle } from 'lucide-react';
 
 interface NetworkDetailsProps {
   selectedScanId: string;
@@ -8,16 +8,16 @@ interface NetworkDetailsProps {
   devices: any[];
   setSelectedScanId: (id: string | null) => void;
   copyToClipboard: (text: string) => void;
-  SCAN_INTENSITIES: Record<string, string>;
+  scanProfiles: any;
   scanIntensity: string;
 }
 
 export default function NetworkDetails({
   selectedScanId, scanHistory, scanStatus, devices, setSelectedScanId,
-  copyToClipboard, SCAN_INTENSITIES, scanIntensity
+  copyToClipboard, scanProfiles, scanIntensity
 }: NetworkDetailsProps) {
   const currentScan = scanHistory.find(s => s.id === selectedScanId);
-  const nmapCommand = currentScan ? `nmap ${SCAN_INTENSITIES[scanIntensity] || '-F'} ${currentScan.target}` : '';
+  const nmapCommand = currentScan ? `nmap ${scanProfiles[scanIntensity]?.flags || '-F'} ${currentScan.target}` : '';
 
   return (
     <div className="flex-1 flex flex-col min-h-0 space-y-4 animate-in fade-in duration-500">
@@ -55,30 +55,6 @@ export default function NetworkDetails({
           Copy Payload
         </button>
       </div>
-
-      {/* Audit Stats Board */}
-      {currentScan && (
-        <div className={`p-5 border rounded-2xl flex items-center justify-between backdrop-blur-md shadow-lg
-          ${(scanStatus || currentScan.status) === 'running' || (scanStatus || currentScan.status) === 'queued' ? 'bg-blue-500/5 border-blue-500/20 shadow-blue-500/10' :
-            (scanStatus || currentScan.status) === 'completed' ? 'bg-emerald-500/5 border-emerald-500/20 shadow-emerald-500/10' :
-              (scanStatus || currentScan.status) === 'error' ? 'bg-red-500/5 border-red-500/20 shadow-red-500/10' : 'bg-slate-900/60 border-slate-800 shadow-xl'}`}
-        >
-          <div className="flex-1">
-            <p className="text-sm font-bold text-white mb-2 tracking-tight">
-              {(scanStatus || currentScan.status) === 'queued' && '⏳ Audit queued. Waiting for core allocation...'}
-              {(scanStatus || currentScan.status) === 'running' && '📡 Initializing multi-vector discovery. Live infrastructure monitoring enabled.'}
-              {(scanStatus || currentScan.status) === 'completed' && '✅ Forensic reconstruction finalized. Results retrieved from historical archives.'}
-              {(scanStatus || currentScan.status) === 'error' && '❌ Technical failure in core discovery engine. Check network permissions.'}
-              {!scanStatus && !currentScan.status && '⚡ Synchronizing with backend subsystem...'}
-            </p>
-            <div className="flex space-x-6 text-[10px] text-slate-500 uppercase font-black tracking-[0.2em]">
-              <div className="flex items-center"><RefreshCw className={`w-3 h-3 mr-2 ${(scanStatus || currentScan.status) === 'running' ? 'animate-spin text-blue-400' : 'text-slate-600'}`} /><span>Runtime: <span className="text-cyan-400 font-mono italic">{currentScan.duration || '--'}</span></span></div>
-              <div className="flex items-center"><Hash className="w-3 h-3 mr-2 text-slate-600" /><span>Nodes: <span className="text-cyan-400 font-mono italic">{currentScan.hosts_found}</span></span></div>
-              <div className="flex items-center"><Globe className="w-3 h-3 mr-2 text-slate-600" /><span>Target: <span className="text-cyan-400 font-mono italic">{currentScan.target}</span></span></div>
-            </div>
-          </div>
-        </div>
-      )}
 
       {/* Target Results Table */}
       <div className="bg-slate-900/40 border border-slate-800 rounded-2xl overflow-hidden flex-1 flex flex-col min-h-0 shadow-2xl relative">

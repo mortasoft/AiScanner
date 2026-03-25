@@ -13,9 +13,32 @@ import redis.asyncio as redis
 
 app = FastAPI(title="Aura API", description="CISO Security Analysis Platform API")
 
+# Helper for Alerts
+async def create_security_alert(description: str, severity: str = "Medium"):
+    alert_id = str(uuid.uuid4())
+    alert = {
+        "id": alert_id,
+        "timestamp": datetime.now().isoformat(),
+        "description": description,
+        "severity": severity,
+        "status": "unread"
+    }
+    await redis_client.lpush("alerts:registry", json.dumps(alert))
+    # Keep only last 100 alerts
+    await redis_client.ltrim("alerts:registry", 0, 99)
+    print(f"[AURA-ALERT] ⚠️  {description}", flush=True)
+
+# Dynamic CORS configuration from ENV
+env_origins = os.getenv("CORS_ORIGINS", "")
+allowed_origins = [o.strip() for o in env_origins.split(",") if o.strip()] or [
+    "http://localhost:43210", 
+    "http://127.0.0.1:43210", 
+    "http://localhost:8000"
+]
+
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],
+    allow_origins=allowed_origins,
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
@@ -44,15 +67,61 @@ redis_client = redis.from_url(REDIS_URL, decode_responses=True)
 ACTIVE_PROCESSES = {}
 
 # Nmap Intensity Configurations
-SCAN_INTENSITIES = {
-    "fast": "-F -PE -n -T4 --osscan-limit --max-retries 1 --host-timeout 10s",
-    "deep": "-p- -PE -n -A -T4 --host-timeout 5m",
-    "stealth": "-sS -Pn -n -T4 --host-timeout 1m",
-    "ping_sweep": "-sn -PE -n -T4 --max-retries 1 --host-timeout 10s",
-    "os_detection": "-O -sV -PE -n --osscan-guess -T4 --host-timeout 30s",
-    "aggressive": "-A -p- -PE -n -T5 --script default,banner,vuln --host-timeout 5m",
-    "script_audit": "-sV -sC -PE -n --script auth,discovery,safe -T4 --host-timeout 3m"
+# Enriched Scan Profiles for Unified API Delivery
+SCAN_PROFILES = {
+    "fast": {
+        "label": "Fast Discovery",
+        "desc": "Minimal footprint, top 100 ports only.",
+        "icon": "ZapOff",
+        "flags": "-F -PE -n -T4 --osscan-limit --max-retries 1 --host-timeout 10s"
+    },
+    "deep": {
+        "label": "Deep Scan",
+        "desc": "Full port inspection with OS/Service detection.",
+        "icon": "Server",
+        "flags": "-p- -PE -n -A -T4 --host-timeout 5m"
+    },
+    "stealth": {
+        "label": "Stealth Audit",
+        "desc": "SYN scan with OS evasion techniques.",
+        "icon": "Shield",
+        "flags": "-sS -Pn -n -T4 --host-timeout 1m"
+    },
+    "ping_sweep": {
+        "label": "Ping Sweep",
+        "desc": "Host discovery without port scanning.",
+        "icon": "Activity",
+        "flags": "-sn -PE -n -T4 --max-retries 1 --host-timeout 10s"
+    },
+    "os_detection": {
+        "label": "OS Fingerprint",
+        "desc": "Deduce OS version via TCP/IP stack.",
+        "icon": "Cpu",
+        "flags": "-O -sV -PE -n --osscan-guess -T4 --host-timeout 30s"
+    },
+    "aggressive": {
+        "label": "Aggressive",
+        "desc": "Full inspection, scripts & vuln scan.",
+        "icon": "Zap",
+        "flags": "-A -p- -PE -n -T5 --script default,banner,vuln --host-timeout 5m"
+    },
+    "service_scan": {
+        "label": "Service Discovery",
+        "desc": "Identify software versions on open ports.",
+        "icon": "RefreshCw",
+        "flags": "-sV -PE -n -T4 --version-intensity 5 --max-retries 1 --host-timeout 3m"
+    },
+    "script_audit": {
+        "label": "Script Audit",
+        "desc": "NSE scripts for auth and discovery.",
+        "icon": "FileCode",
+        "flags": "-sV -sC -PE -n --script auth,discovery,safe -T4 --host-timeout 3m"
+    }
 }
+
+@app.get("/scan/profiles")
+async def get_scan_profiles():
+    return SCAN_PROFILES
 
 def format_duration(seconds: float) -> str:
     h = int(seconds // 3600)
@@ -74,7 +143,8 @@ async def perform_nmap_scan(target: str, scan_id: str, intensity_key: str):
     await redis_client.hset(f"scan:{scan_id}", mapping={"status": "running", "progress": 0})
     
     # Get actual flags from mapping, fallback to fast scan
-    nmap_args = SCAN_INTENSITIES.get(intensity_key, SCAN_INTENSITIES["fast"])
+    profile = SCAN_PROFILES.get(intensity_key, SCAN_PROFILES["fast"])
+    nmap_args = profile.get("flags", SCAN_PROFILES["fast"]["flags"])
     
     # Conditional logic: Don't combine -sn (ping only) with port scan flags (-sS, --open)
     if "-sn" in nmap_args:
@@ -189,7 +259,8 @@ async def perform_nmap_scan(target: str, scan_id: str, intensity_key: str):
                     "mac": mac_full if mac_addr != '-' else "-",
                     "os": os_info,
                     "ports": ", ".join(open_ports_list) or "-",
-                    "status": "up"
+                    "status": "up",
+                    "internal_id": f"TR7-009-{host.split('.')[-1]}"
                 }
                 results.append(host_info)
                 print(f"[AURA-HOST] {host} ({hostname}) | MAC: {host_info['mac']} | Ports: {host_info['ports']}", flush=True)
@@ -244,15 +315,78 @@ async def perform_nmap_scan(target: str, scan_id: str, intensity_key: str):
                     "mac": mac_display if mac != '-' else "-",
                     "os": os_name,
                     "ports": ", ".join(ports_found) or "-",
-                    "status": "up"
+                    "status": "up",
+                    "internal_id": f"TR7-009-{ip.split('.')[-1]}",
+                    "urls": ",".join([f"{'https' if p in ['443','8443'] else 'http'}://{ip}:{p}" for p in ports_found if p in ['80','443','8080','8443','3000','5000','8000']])
                 }
                 results.append(host_info)
                 print(f"[AURA-SCRAPE] {ip} ({hostname}) | MAC: {host_info['mac']} | Ports: {host_info['ports']}", flush=True)
                 
-        # Final persistence (Aura Registry)
+        # Final persistence (Aura Registry) with Multi-IP support
         for host_info in results:
             host_ip = host_info['ip']
+            # Extract clean MAC (no vendor) for lookup
+            clean_mac = host_info['mac'].split(' ')[0] if host_info['mac'] != '-' else None
+            
             await redis_client.sadd("hosts:list", host_ip)
+            
+            # Check if host already exists to preserve first_seen and aggregate IPs
+            existing_data = await redis_client.hgetall(f"host:{host_ip}")
+            
+            # Aggregation logic: If we have a MAC, find other IPs sharing it
+            all_ips = {host_ip}
+            if clean_mac:
+                # Store MAC -> IPs mapping for fast lookup
+                await redis_client.sadd(f"mac_ips:{clean_mac}", host_ip)
+                # Get all IPs currently known for this MAC
+                mac_ips = await redis_client.smembers(f"mac_ips:{clean_mac}")
+                for m_ip in mac_ips:
+                    all_ips.add(m_ip.decode('utf-8') if isinstance(m_ip, bytes) else m_ip)
+            
+            host_info["all_ips"] = ", ".join(sorted(list(all_ips)))
+            
+            if not existing_data:
+                host_info["first_seen"] = now
+                host_info["scan_history"] = scan_id
+                # ALERT: New host discovered
+                await create_security_alert(f"New unauthorized host detected at {host_ip}", "High")
+            else:
+                host_info["first_seen"] = existing_data.get("first_seen", now)
+                
+                # Compare ports for changes
+                old_ports = set(existing_data.get("ports", "-").split(", "))
+                new_ports = set(host_info["ports"].split(", "))
+                
+                added_ports = new_ports - old_ports
+                removed_ports = old_ports - new_ports
+                
+                # Handle "-" in sets
+                added_ports.discard("-")
+                added_ports.discard("")
+                removed_ports.discard("-")
+                removed_ports.discard("")
+
+                if added_ports:
+                    await create_security_alert(f"Critical Shift: Host {host_ip} opened new ports: {', '.join(added_ports)}", "Medium")
+                if removed_ports:
+                    await create_security_alert(f"Information: Host {host_ip} closed previously active ports: {', '.join(removed_ports)}", "Low")
+
+                # Merge scan history
+                prev_scans = existing_data.get("scan_history", "").split(",")
+                scan_set = {s.strip() for s in prev_scans if s.strip()}
+                scan_set.add(scan_id)
+                host_info["scan_history"] = ",".join(sorted(list(scan_set), reverse=True))
+                
+                # If we had previous aggregated IPs, merge them
+                prev_ips = existing_data.get("all_ips", "").split(", ")
+                for p_ip in prev_ips:
+                    if p_ip and p_ip != "-":
+                        all_ips.add(p_ip)
+                host_info["all_ips"] = ", ".join(sorted(list(all_ips)))
+                # Preserve manual notes during re-scans
+                if "notes" in existing_data:
+                    host_info["notes"] = existing_data["notes"]
+
             await redis_client.hset(f"host:{host_ip}", mapping={**host_info, "last_seen": now})
             
         # Serialize and store scan results
@@ -419,6 +553,43 @@ async def delete_scan(scan_id: str):
     
     return {"status": "success", "message": f"Scan {scan_id} deleted"}
 
+SYSTEM_CONFIG = {
+    "name": "AURA",
+    "slogan": "Cyber Intelligence",
+    "version": "v2.5 Stealth",
+    "coverage": 87,
+    "posture": "Infrastructure integrity is stable. No unauthorized lateral movements detected in the last scan cycle."
+}
+
+@app.get("/stats")
+async def get_stats():
+    # Fetch real counts from Redis
+    total_hosts = await redis_client.scard("hosts:list")
+    total_scans = await redis_client.llen("scans:list")
+    
+    # Get vulnerability count (mocked for now but from the real list)
+    vulns = [
+        {"id": "CVE-2021-44228", "severity": "Critical"},
+        {"id": "CVE-2023-23397", "severity": "High"}
+    ]
+    
+    # Measure Redis latency
+    import time
+    start_time = time.time()
+    await redis_client.ping()
+    db_latency = round((time.time() - start_time) * 1000, 2)
+    
+    return {
+        "system": SYSTEM_CONFIG,
+        "total_hosts": total_hosts,
+        "total_scans": total_scans,
+        "total_vulnerabilities": len(vulns),
+        "db_latency": f"{db_latency}ms",
+        "engine_status": "Operational",
+        "platform_integrity": "100%",
+        "last_sync": datetime.now().strftime("%H:%M:%S")
+    }
+
 @app.get("/hosts")
 async def get_all_hosts():
     host_ips = await redis_client.smembers("hosts:list")
@@ -435,6 +606,95 @@ async def get_all_hosts():
             hosts.append(host_data)
             
     return hosts
+@app.post("/host/{ip}/notes")
+async def update_host_notes(ip: str, data: dict):
+    notes = data.get("notes", "")
+    await redis_client.hset(f"host:{ip}", "notes", notes)
+    
+    now_log = datetime.now().strftime("%H:%M:%S")
+    print(f"[{now_log}] [AURA-API] 📝 NOTES UPDATED FOR {ip}")
+    return {"status": "success"}
+
+@app.post("/host/{ip}/urls")
+async def update_host_urls(ip: str, data: dict):
+    new_url = data.get("url", "")
+    if not new_url:
+        return {"error": "URL is required"}
+        
+    host_data = await redis_client.hgetall(f"host:{ip}")
+    current_urls = host_data.get("urls", "")
+    url_list = [u.strip() for u in current_urls.split(",") if u.strip()]
+    
+    if new_url not in url_list:
+        url_list.append(new_url)
+        await redis_client.hset(f"host:{ip}", "urls", ",".join(url_list))
+        
+    now_log = datetime.now().strftime("%H:%M:%S")
+    print(f"[{now_log}] [AURA-API] 🔗 URL ADDED FOR {ip}: {new_url}")
+    return {"status": "success", "urls": ",".join(url_list)}
+
+@app.put("/host/{ip}/hostname")
+async def update_host_hostname(ip: str, data: dict):
+    new_hostname = data.get("hostname", "-")
+    await redis_client.hset(f"host:{ip}", "hostname", new_hostname)
+    
+    now_log = datetime.now().strftime("%H:%M:%S")
+    print(f"[{now_log}] [AURA-API] 📝 HOSTNAME OVERRIDE FOR {ip}: {new_hostname}")
+    return {"status": "success", "hostname": new_hostname}
+
+@app.put("/host/{ip}/os")
+async def update_host_os(ip: str, data: dict):
+    new_os = data.get("os", "-")
+    await redis_client.hset(f"host:{ip}", "os", new_os)
+    
+    now_log = datetime.now().strftime("%H:%M:%S")
+    print(f"[{now_log}] [AURA-API] 🖥️  OS OVERRIDE FOR {ip}: {new_os}")
+    return {"status": "success", "os": new_os}
+
+@app.put("/host/{ip}/urls")
+async def update_host_urls_list(ip: str, data: dict):
+    urls = data.get("urls", [])
+    if not isinstance(urls, list):
+        return {"error": "URLs must be a list"}
+        
+    await redis_client.hset(f"host:{ip}", "urls", ",".join(urls))
+    
+    now_log = datetime.now().strftime("%H:%M:%S")
+    print(f"[{now_log}] [AURA-API] 🔄 URL LIST UPDATED FOR {ip}")
+    return {"status": "success", "urls": ",".join(urls)}
+    
+@app.get("/alerts")
+async def get_security_alerts():
+    alerts_raw = await redis_client.lrange("alerts:registry", 0, -1)
+    return [json.loads(a) for a in alerts_raw]
+
+@app.delete("/alerts/{alert_id}")
+async def dismiss_alert(alert_id: str):
+    alerts_raw = await redis_client.lrange("alerts:registry", 0, -1)
+    for a in alerts_raw:
+        alert = json.loads(a)
+        if alert["id"] == alert_id:
+            await redis_client.lrem("alerts:registry", 1, a)
+            return {"status": "success"}
+    return {"status": "error", "message": "Alert not found"}
+
+@app.delete("/host/{ip}")
+async def delete_host(ip: str):
+    # Get host data first to find MAC for cleanup
+    host_data = await redis_client.hgetall(f"host:{ip}")
+    if host_data and "mac" in host_data:
+        clean_mac = host_data["mac"].split(' ')[0]
+        if clean_mac and clean_mac != "-":
+            await redis_client.srem(f"mac_ips:{clean_mac}", ip)
+            
+    # Purge from global list and delete data
+    await redis_client.srem("hosts:list", ip)
+    await redis_client.delete(f"host:{ip}")
+    
+    now_log = datetime.now().strftime("%H:%M:%S")
+    print(f"[{now_log}] [AURA-API] 🗑️  ENDPOINT PURGED: {ip}")
+    
+    return {"status": "success", "message": f"Endpoint {ip} removed from registry"}
 
 @app.post("/vulnerability/scan")
 async def vulerability_scan(target: str, scanner: str = "nessus"):
