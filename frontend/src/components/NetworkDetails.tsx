@@ -97,32 +97,71 @@ export default function NetworkDetails({
             <table className="w-full text-left text-sm border-separate border-spacing-0">
               <thead className="bg-slate-950/50 text-slate-500 border-b border-slate-800 sticky top-0 z-10 backdrop-blur-md">
                 <tr>
-                  <th className="px-6 py-4 font-black uppercase tracking-widest text-[10px]">Identified IP</th>
-                  <th className="px-6 py-4 font-black uppercase tracking-widest text-[10px]">Signature Status</th>
-                  <th className="px-6 py-4 font-black uppercase tracking-widest text-[10px]"><Cpu className="w-3.5 h-3.5 inline mr-1.5 -mt-0.5" />Operating System</th>
-                  <th className="px-6 py-4 font-black uppercase tracking-widest text-[10px]">Open Ports Detected</th>
-                  <th className="px-6 py-4 font-black uppercase tracking-widest text-[10px] text-right">Hardware MAC</th>
+                  <th className="px-6 py-4 font-black uppercase tracking-widest text-[10px]">Host </th>
+                  <th className="px-6 py-4 font-black uppercase tracking-widest text-[10px]">Status</th>
+                  <th className="px-6 py-4 font-black uppercase tracking-widest text-[10px] text-center">Operating System</th>
+                  <th className="px-6 py-4 font-black uppercase tracking-widest text-[10px] text-center">Open Ports Detected</th>
+                  <th className="px-6 py-4 font-black uppercase tracking-widest text-[10px] text-center">Hardware MAC</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-800/30">
-                {devices.map((target, i) => (
-                  <tr key={i} className="hover:bg-slate-800/40 transition-all border-l-2 border-transparent hover:border-emerald-500">
-                    <td className="px-6 py-4">
-                      <div className="flex items-center space-x-3">
-                        <div className="w-2 h-2 bg-emerald-500 rounded-full shadow-[0_0_8px_rgba(16,185,129,0.5)]"></div>
-                        <span className="font-mono text-cyan-400 font-black tracking-tighter text-sm">{target.ip}</span>
+                {devices.map((target, i) => {
+                  const renderPorts = (portsStr: string) => {
+                    if (!portsStr || portsStr === '-') return <span className="text-slate-600 opacity-40 text-center block">-</span>;
+                    const ports = portsStr.split(',').map(p => p.trim());
+                    return (
+                      <div className="flex flex-wrap gap-1.5 justify-center">
+                        {ports.map((port, idx) => {
+                          let colorClass = "bg-slate-800/40 text-slate-400 border-slate-700/50";
+                          const p = parseInt(port);
+                          if ([80, 443, 8080, 8443].includes(p)) colorClass = "bg-blue-500/10 text-blue-400 border-blue-500/20";
+                          else if ([22, 23, 21].includes(p)) colorClass = "bg-emerald-500/10 text-emerald-400 border-emerald-500/20";
+                          else if ([3306, 5432, 27017, 6379].includes(p)) colorClass = "bg-amber-500/10 text-amber-400 border-amber-500/20";
+                          else if ([139, 445].includes(p)) colorClass = "bg-rose-500/10 text-rose-400 border-rose-500/30";
+                          return (
+                            <span key={idx} className={`px-2 py-0.5 rounded-md text-[9px] font-black border uppercase tracking-wider ${colorClass}`}>
+                              {port}
+                            </span>
+                          );
+                        })}
                       </div>
-                    </td>
-                    <td className="px-6 py-4">
-                      <span className="inline-flex items-center px-2 py-0.5 rounded-md text-[9px] font-black tracking-widest bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 uppercase italic">
-                        Verified UP
-                      </span>
-                    </td>
-                    <td className="px-6 py-4 text-slate-300 font-bold text-xs">{target.os}</td>
-                    <td className="px-6 py-4 text-slate-400 font-mono text-xs italic opacity-80">{target.ports}</td>
-                    <td className="px-6 py-4 text-right font-mono text-[10px] text-slate-500 font-bold">{target.mac}</td>
-                  </tr>
-                ))}
+                    );
+                  };
+
+                  return (
+                    <tr key={i} className="hover:bg-slate-800/40 transition-all border-l-2 border-transparent hover:border-emerald-500">
+                      <td className="px-6 py-4">
+                        <div className="flex items-center space-x-3">
+                          <div className="w-2 h-2 bg-emerald-500 rounded-full shadow-[0_0_8px_rgba(16,185,129,0.5)]"></div>
+                          <span className="font-mono text-cyan-400 font-black tracking-tighter text-sm">
+                            {target.ip}
+                            {target.hostname && target.hostname !== '-' && (
+                              <span className="ml-2 text-[10px] text-slate-500 font-normal tracking-wide italic opacity-70">
+                                ({target.hostname})
+                              </span>
+                            )}
+                          </span>
+                        </div>
+                      </td>
+                      <td className="px-6 py-4">
+                        <span className="inline-flex items-center px-2 py-0.5 rounded-md text-[9px] font-black tracking-widest bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 uppercase italic">
+                          Verified UP
+                        </span>
+                      </td>
+                      <td className="px-6 py-4 text-center">
+                        <span className={`text-xs font-bold ${target.os === '-' ? 'text-slate-600 italic opacity-40 font-normal' : 'text-slate-300'}`}>
+                          {target.os}
+                        </span>
+                      </td>
+                      <td className="px-6 py-4 text-center">
+                        {renderPorts(target.ports)}
+                      </td>
+                      <td className="px-6 py-4 text-center font-mono text-[10px] text-white font-black tracking-wider">
+                        {target.mac}
+                      </td>
+                    </tr>
+                  );
+                })}
               </tbody>
             </table>
           </div>

@@ -170,29 +170,29 @@ async def perform_nmap_scan(target: str, scan_id: str, intensity_key: str):
                             open_ports_list.append(str(port))
                 
                 # MAC & Vendor extraction
-                mac_addr = nm[host]['addresses'].get('mac', 'Unknown')
+                mac_addr = nm[host]['addresses'].get('mac', '-')
                 vendor = nm[host]['vendor'].get(mac_addr, '')
                 mac_full = f"{mac_addr} ({vendor})" if vendor else mac_addr
                 
                 # Hostname extraction
-                hostname = nm[host].hostname() or "Unknown"
+                hostname = nm[host].hostname() or "-"
                 
                 # OS extraction
-                os_info = "Unknown"
+                os_info = "-"
                 os_match_list = nm[host].get('osmatch', [])
                 if os_match_list:
-                    os_info = os_match_list[0].get('name', 'Unknown')
+                    os_info = os_match_list[0].get('name', '-')
                 
                 host_info = {
                     "ip": host, 
                     "hostname": hostname,
-                    "mac": mac_full,
+                    "mac": mac_full if mac_addr != '-' else "-",
                     "os": os_info,
-                    "ports": ", ".join(open_ports_list) or "No open ports found",
-                    "status": state
+                    "ports": ", ".join(open_ports_list) or "-",
+                    "status": "up"
                 }
                 results.append(host_info)
-                print(f"[AURA-HOST] {host} ({hostname}) | MAC: {mac_addr} | Ports: {host_info['ports']}", flush=True)
+                print(f"[AURA-HOST] {host} ({hostname}) | MAC: {host_info['mac']} | Ports: {host_info['ports']}", flush=True)
 
         except Exception as parse_err:
             print(f"[AURA-WARN] ⚠️ Python-nmap parsing failed: {str(parse_err)}. Falling back to direct XML scraping.", flush=True)
@@ -202,10 +202,10 @@ async def perform_nmap_scan(target: str, scan_id: str, intensity_key: str):
             print(f"[AURA-DEBUG] Starting direct XML scraping fallback...", flush=True)
             root_xml = ET.fromstring(xml_output)
             for host_node in root_xml.findall('host'):
-                ip = "Unknown"
-                mac = "Unknown"
+                ip = "-"
+                mac = "-"
                 vendor = ""
-                hostname = "Unknown"
+                hostname = "-"
                 
                 # Extract IPs and MACs
                 for addr in host_node.findall('address'):
@@ -216,12 +216,12 @@ async def perform_nmap_scan(target: str, scan_id: str, intensity_key: str):
                         mac = addr.get('addr')
                         vendor = addr.get('vendor', '')
                 
-                if ip == "Unknown": continue
+                if ip == "-": continue
                 
                 # Extract Hostname
                 hform = host_node.find('.//hostname')
                 if hform is not None:
-                    hostname = hform.get('name', 'Unknown')
+                    hostname = hform.get('name', '-')
                 
                 # Extract Ports
                 ports_found = []
@@ -231,23 +231,23 @@ async def perform_nmap_scan(target: str, scan_id: str, intensity_key: str):
                         ports_found.append(port_node.get('portid'))
                 
                 # Extract OS (if available)
-                os_name = "Unknown"
+                os_name = "-"
                 os_node = host_node.find('.//osmatch')
                 if os_node is not None:
-                    os_name = os_node.get('name', 'Unknown')
+                    os_name = os_node.get('name', '-')
                 
                 mac_display = f"{mac} ({vendor})" if vendor else mac
                 
                 host_info = {
                     "ip": ip,
                     "hostname": hostname,
-                    "mac": mac_display,
+                    "mac": mac_display if mac != '-' else "-",
                     "os": os_name,
-                    "ports": ", ".join(ports_found) or "No open ports found",
+                    "ports": ", ".join(ports_found) or "-",
                     "status": "up"
                 }
                 results.append(host_info)
-                print(f"[AURA-SCRAPE] {ip} ({hostname}) | MAC: {mac} | Ports: {host_info['ports']}", flush=True)
+                print(f"[AURA-SCRAPE] {ip} ({hostname}) | MAC: {host_info['mac']} | Ports: {host_info['ports']}", flush=True)
                 
         # Final persistence (Aura Registry)
         for host_info in results:
