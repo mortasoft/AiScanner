@@ -174,6 +174,9 @@ async def perform_nmap_scan(target: str, scan_id: str, intensity_key: str):
                 vendor = nm[host]['vendor'].get(mac_addr, '')
                 mac_full = f"{mac_addr} ({vendor})" if vendor else mac_addr
                 
+                # Hostname extraction
+                hostname = nm[host].hostname() or "Unknown"
+                
                 # OS extraction
                 os_info = "Unknown"
                 os_match_list = nm[host].get('osmatch', [])
@@ -182,13 +185,14 @@ async def perform_nmap_scan(target: str, scan_id: str, intensity_key: str):
                 
                 host_info = {
                     "ip": host, 
+                    "hostname": hostname,
                     "mac": mac_full,
                     "os": os_info,
                     "ports": ", ".join(open_ports_list) or "No open ports found",
                     "status": state
                 }
                 results.append(host_info)
-                print(f"[AURA-HOST] {host} | MAC: {mac_addr} | Ports: {host_info['ports']}", flush=True)
+                print(f"[AURA-HOST] {host} ({hostname}) | MAC: {mac_addr} | Ports: {host_info['ports']}", flush=True)
 
         except Exception as parse_err:
             print(f"[AURA-WARN] ⚠️ Python-nmap parsing failed: {str(parse_err)}. Falling back to direct XML scraping.", flush=True)
@@ -201,6 +205,7 @@ async def perform_nmap_scan(target: str, scan_id: str, intensity_key: str):
                 ip = "Unknown"
                 mac = "Unknown"
                 vendor = ""
+                hostname = "Unknown"
                 
                 # Extract IPs and MACs
                 for addr in host_node.findall('address'):
@@ -212,6 +217,11 @@ async def perform_nmap_scan(target: str, scan_id: str, intensity_key: str):
                         vendor = addr.get('vendor', '')
                 
                 if ip == "Unknown": continue
+                
+                # Extract Hostname
+                hform = host_node.find('.//hostname')
+                if hform is not None:
+                    hostname = hform.get('name', 'Unknown')
                 
                 # Extract Ports
                 ports_found = []
@@ -230,13 +240,14 @@ async def perform_nmap_scan(target: str, scan_id: str, intensity_key: str):
                 
                 host_info = {
                     "ip": ip,
+                    "hostname": hostname,
                     "mac": mac_display,
                     "os": os_name,
                     "ports": ", ".join(ports_found) or "No open ports found",
                     "status": "up"
                 }
                 results.append(host_info)
-                print(f"[AURA-SCRAPE] {ip} | MAC: {mac} | Ports: {host_info['ports']}", flush=True)
+                print(f"[AURA-SCRAPE] {ip} ({hostname}) | MAC: {mac} | Ports: {host_info['ports']}", flush=True)
                 
         # Final persistence (Aura Registry)
         for host_info in results:
