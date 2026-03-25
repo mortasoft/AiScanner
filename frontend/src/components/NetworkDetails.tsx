@@ -131,21 +131,20 @@ export default function NetworkDetails({
                   return (
                     <tr key={i} className="hover:bg-slate-800/40 transition-all border-l-2 border-transparent hover:border-emerald-500">
                       <td className="px-6 py-4">
-                        <div className="flex items-center space-x-3">
-                          <div className="w-2 h-2 bg-emerald-500 rounded-full shadow-[0_0_8px_rgba(16,185,129,0.5)]"></div>
-                          <span className="font-mono text-cyan-400 font-black tracking-tighter text-sm">
+                        <div className="flex flex-col">
+                          <span className="font-mono text-cyan-400 font-black tracking-tighter text-sm uppercase">
                             {target.ip}
-                            {target.hostname && target.hostname !== '-' && (
-                              <span className="ml-2 text-[10px] text-slate-500 font-normal tracking-wide italic opacity-70">
-                                ({target.hostname})
-                              </span>
-                            )}
                           </span>
+                          {target.hostname && target.hostname !== '-' && (
+                            <span className="font-mono text-cyan-400 font-black tracking-tighter text-[10px] uppercase opacity-80">
+                              {target.hostname}
+                            </span>
+                          )}
                         </div>
                       </td>
                       <td className="px-6 py-4">
                         <span className="inline-flex items-center px-2 py-0.5 rounded-md text-[9px] font-black tracking-widest bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 uppercase italic">
-                          Verified UP
+                          UP
                         </span>
                       </td>
                       <td className="px-6 py-4 text-center">
